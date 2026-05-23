@@ -2143,18 +2143,28 @@ function restoreData(){
   input.onchange=function(e){
     const file=e.target.files[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=function(ev){
+    reader.onload=async function(ev){
       try{
         const d=JSON.parse(ev.target.result);
         if(!d.items){toast('올바른 백업 파일이 아닙니다');return;}
-        if(!confirm('현재 데이터를 백업 파일로 덮어쓰시겠습니까?'))return;
-        cats=d.cats||cats;depts=d.depts||depts;
-        items=d.items;history=d.history||[];
-        nextItemId=d.nextItemId||10;nextLotId=d.nextLotId||1000;nextHistId=d.nextHistId||10;
-        memoNotes=d.memoNotes||[];memoNextId=d.memoNextId||1;
-        saveData();rebuildSelects();render();
-        toast('복원 완료');
-      } catch(err){toast('파일을 읽을 수 없습니다');}
+        cats=d.cats||cats;
+        depts=d.depts||depts;
+        items=d.items;
+        history=d.history||[];
+        nextItemId=d.nextItemId||10;
+        nextLotId=d.nextLotId||1000;
+        nextHistId=d.nextHistId||10;
+        memoNotes=d.memoNotes||[];
+        memoNextId=d.memoNextId||1;
+        toast('Supabase에 저장 중... 잠깐만요');
+        await saveData();
+        rebuildSelects();
+        render();
+        toast('복원 완료! Supabase에 저장됐어요 ✅');
+      } catch(err){
+        console.error(err);
+        toast('파일을 읽을 수 없습니다');
+      }
     };
     reader.readAsText(file);
   };
