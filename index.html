@@ -936,22 +936,33 @@ async function loadData(){
 
 // ── 앱 초기화 ──
 async function initApp(){
+  // 현재 세션 먼저 확인
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){
+    document.getElementById('login-wrap').style.display='none';
+    document.getElementById('app-wrap').style.display='block';
+    document.getElementById('login-btn').disabled=false;
+    document.getElementById('login-btn').textContent='로그인';
+    await loadData();
+    rebuildSelects();
+    render();
+  } else {
+    document.getElementById('login-wrap').style.display='flex';
+    document.getElementById('app-wrap').style.display='none';
+    document.getElementById('login-btn').disabled=false;
+    document.getElementById('login-btn').textContent='로그인';
+  }
+
+  // 이후 상태 변화 감지
   sb.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'||event==='INITIAL_SESSION'){
-      if(session){
-        document.getElementById('login-wrap').style.display='none';
-        document.getElementById('app-wrap').style.display='block';
-        document.getElementById('login-btn').disabled=false;
-        document.getElementById('login-btn').textContent='로그인';
-        await loadData();
-        rebuildSelects();
-        render();
-      } else {
-        document.getElementById('login-wrap').style.display='flex';
-        document.getElementById('app-wrap').style.display='none';
-        document.getElementById('login-btn').disabled=false;
-        document.getElementById('login-btn').textContent='로그인';
-      }
+    if(event==='SIGNED_IN'){
+      document.getElementById('login-wrap').style.display='none';
+      document.getElementById('app-wrap').style.display='block';
+      document.getElementById('login-btn').disabled=false;
+      document.getElementById('login-btn').textContent='로그인';
+      await loadData();
+      rebuildSelects();
+      render();
     } else if(event==='SIGNED_OUT'){
       document.getElementById('login-wrap').style.display='flex';
       document.getElementById('app-wrap').style.display='none';
