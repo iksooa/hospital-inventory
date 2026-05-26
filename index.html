@@ -1947,8 +1947,13 @@ function openCfm(type,id){
 function closeCfm(){document.getElementById('ov-cfm').classList.remove('open');}
 
 ['ov-detail','ov-add','ov-qio','ov-cfm','ov-chip','ov-hedit','ov-export'].forEach(id=>{
-  document.getElementById(id).addEventListener('click',function(e){
+  const el=document.getElementById(id);
+  let mousedownTarget=null;
+  el.addEventListener('mousedown',function(e){mousedownTarget=e.target;});
+  el.addEventListener('click',function(e){
+    // 드래그 후 overlay에서 mouseup된 경우 무시
     if(e.target!==this)return;
+    if(mousedownTarget!==this)return;
     if(id==='ov-detail')closeDetail();
     else if(id==='ov-add')closeAdd();
     else if(id==='ov-qio')closeQio();
