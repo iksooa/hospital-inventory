@@ -212,7 +212,8 @@ tbody td{padding:8px 10px;white-space:nowrap;vertical-align:middle}
 .memo-drawer.open{right:0}
 /* 메모 열릴 때 앱 콘텐츠 왼쪽으로 이동 */
 .app{transition:padding-right .3s cubic-bezier(.4,0,.2,1)}
-.app.memo-open{padding-right:396px}
+#app-wrap{transition:margin-right .3s cubic-bezier(.4,0,.2,1)}
+#app-wrap.memo-open{margin-right:380px}
 .memo-drawer-hd{padding:14px 16px;border-bottom:1px solid #f0f0ee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .memo-drawer-hd h2{font-size:14px;font-weight:600}
 .memo-tabs{display:flex;gap:0;padding:10px 16px 0;border-bottom:1px solid #f0f0ee;flex-shrink:0}
@@ -346,6 +347,25 @@ tbody td{padding:8px 10px;white-space:nowrap;vertical-align:middle}
         <div class="info-f"><label>최소 재고</label><input type="number" id="if-min" min="0"></div>
         <div class="info-f"><label>카테고리</label><select id="if-cat"></select></div>
         <div class="info-f"><label>담당부서</label><select id="if-dept"></select></div>
+        <!-- 유효기간 알림 -->
+        <div class="section-divider">유효기간 설정</div>
+        <div class="info-f full">
+          <div class="noexp-row" style="margin-bottom:10px">
+            <input type="checkbox" id="if-noexp" onchange="toggleItemNoExp('if')">
+            <label for="if-noexp" style="font-size:12px;color:#555;font-weight:500">이 품목은 유효기간 없음</label>
+          </div>
+          <div id="if-alert-wrap">
+            <label>만료 O일/달 전 알림</label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+              <input type="number" id="if-alert-val" min="1" value="1" style="width:70px" onchange="updateAlertPreview()" oninput="updateAlertPreview()">
+              <select id="if-alert-unit" style="width:80px" onchange="updateAlertPreview()">
+                <option value="days">일 전</option>
+                <option value="months">달 전</option>
+              </select>
+              <span style="font-size:11px;color:#aaa" id="if-alert-preview"></span>
+            </div>
+          </div>
+        </div>
         <!-- 발주처 정보 -->
         <div class="section-divider">발주처 정보</div>
         <div class="info-f"><label>회사명</label><input type="text" id="if-company" placeholder="예: (주)한국바이오"></div>
@@ -390,7 +410,7 @@ tbody td{padding:8px 10px;white-space:nowrap;vertical-align:middle}
             </div>
 
             <!-- 유효기간 -->
-            <div class="ff">
+            <div class="ff" id="hadd-exp-area">
               <label>유효기간</label>
               <select id="hadd-lot-sel" onchange="onHaddLotSel()" style="height:28px;padding:4px 6px;border:1px solid #ddd;border-radius:7px;font-size:11px;outline:none;background:#fff;width:100%;margin-bottom:3px">
                 <option value="">-- 직접 입력 --</option>
@@ -575,6 +595,26 @@ tbody td{padding:8px 10px;white-space:nowrap;vertical-align:middle}
       <div class="info-f"><label>최소 재고</label><input type="number" id="f-min" min="0" value="10"></div>
       <div class="info-f"><label>카테고리</label><select id="f-cat"></select></div>
       <div class="info-f"><label>담당부서</label><select id="f-dept"></select></div>
+      <!-- 유효기간 설정 -->
+      <div class="section-divider">유효기간 설정</div>
+      <div class="info-f full">
+        <div class="noexp-row" style="margin-bottom:10px">
+          <input type="checkbox" id="f-noexp" onchange="toggleItemNoExp('f')">
+          <label for="f-noexp" style="font-size:12px;color:#555;font-weight:500">이 품목은 유효기간 없음</label>
+        </div>
+        <div id="f-alert-wrap">
+          <label>만료 O일/달 전 알림</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+            <input type="number" id="f-alert-val" min="1" value="30" style="width:70px" onchange="updateAddAlertPreview()" oninput="updateAddAlertPreview()">
+            <select id="f-alert-unit" style="width:80px" onchange="updateAddAlertPreview()">
+              <option value="days">일 전</option>
+              <option value="months">달 전</option>
+            </select>
+            <span style="font-size:11px;color:#aaa" id="f-alert-preview">→ 만료 30일 전부터 주황색 표시</span>
+          </div>
+        </div>
+      </div>
+      <!-- 발주처 정보 -->
       <div class="section-divider">발주처 정보 <span style="font-weight:400;color:#ccc">(선택)</span></div>
       <div class="info-f"><label>회사명</label><input type="text" id="f-company" placeholder="예: (주)한국바이오"></div>
       <div class="info-f"><label>영업사원</label><input type="text" id="f-sales" placeholder="예: 홍길동"></div>
@@ -868,7 +908,9 @@ async function saveData(){
     if(items.length){
       const {data:insertedItems}=await sb.from('items').insert(items.map(i=>({
         id:i.id,name:i.name,code:i.code,category:i.cat,department:i.dept,
-        min_qty:i.min,company:i.company||'',sales_person:i.sales||'',contact:i.contact||''
+        min_qty:i.min,company:i.company||'',sales_person:i.sales||'',contact:i.contact||'',
+        exp_alert_days:i.expAlertDays||30,
+        no_expiry:i.noExp||false
       }))).select();
       // 로트 동기화
       const allLots=items.flatMap(i=>i.lots.map(l=>({
@@ -915,6 +957,8 @@ async function loadData(){
       items=itemsRes.data.map(i=>({
         id:i.id,name:i.name,code:i.code||'',cat:i.category,dept:i.department,
         min:i.min_qty,company:i.company||'',sales:i.sales_person||'',contact:i.contact||'',
+        expAlertDays:i.exp_alert_days||30,
+        noExp:i.no_expiry||false,
         lots:lotsByItem[i.id]||[]
       }));
       const maxItemId=Math.max(0,...items.map(i=>i.id));
@@ -1065,13 +1109,29 @@ function sBadge(s){
   if(s==='재고부족')return`<span class="badge b-low"><i class="ti ti-alert-circle" style="font-size:9px"></i>재고부족</span>`;
   return`<span class="badge b-ok"><i class="ti ti-check" style="font-size:9px"></i>정상</span>`;
 }
-function eStyle(e){if(!e)return'';const d=(new Date(e)-new Date())/86400000;return d<0?'color:#c0392b;font-weight:600':d<30?'color:#d68910':'';}
+function eStyle(e,alertDays){
+  if(!e)return'';
+  const days=alertDays||30;
+  const d=(new Date(e)-new Date())/86400000;
+  return d<0?'color:#c0392b;font-weight:600':d<days?'color:#d68910':'';
+}
 function today(){return new Date().toISOString().slice(0,10);}
 function nowDate(){return today();}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity=1;clearTimeout(t._tid);t._tid=setTimeout(()=>t.style.opacity=0,2200);}
-function expLabel(exp){if(!exp)return'유효기간 없음';const d=(new Date(exp)-new Date())/86400000;if(d<0)return`${exp} (만료)`;if(d<30)return`${exp} (D-${Math.ceil(d)})`;return exp;}
-function expOptStyle(exp){if(!exp)return'';const d=(new Date(exp)-new Date())/86400000;return d<0?'color:#c0392b':d<30?'color:#d68910':'';}
-
+function expLabel(exp,alertDays){
+  if(!exp)return'유효기간 없음';
+  const days=alertDays||30;
+  const d=(new Date(exp)-new Date())/86400000;
+  if(d<0)return`${exp} (만료)`;
+  if(d<days)return`${exp} (D-${Math.ceil(d)})`;
+  return exp;
+}
+function expOptStyle(exp,alertDays){
+  if(!exp)return'';
+  const days=alertDays||30;
+  const d=(new Date(exp)-new Date())/86400000;
+  return d<0?'color:#c0392b':d<days?'color:#d68910':'';
+}
 function toggleNoExp(type){
   const cb=document.getElementById(type+'-noexp'),inp=document.getElementById(type+'-exp');
   inp.value='';inp.disabled=cb.checked;
@@ -1166,6 +1226,7 @@ function render(){
   tb.innerHTML=f.map(i=>{
     const s=status(i),qty=tqty(i),exp=earliest(i),lc=i.lots.length;
     const qS=s==='재고없음'?'color:#c0392b;font-weight:700':s==='재고부족'?'color:#d68910;font-weight:700':'font-weight:500';
+    const alertDays=i.expAlertDays||30;
     return`<tr onclick="openDetail(${i.id})">
       <td style="font-weight:500">${i.name}${lc>1?`<span style="font-size:10px;color:#ccc;margin-left:4px">${lc}로트</span>`:''}</td>
       <td style="color:#ccc;font-size:10px">${i.code}</td>
@@ -1174,7 +1235,7 @@ function render(){
       <td style="text-align:right;${qS}">${qty}</td>
       <td style="text-align:right;color:#ccc">${i.min}</td>
       <td>${sBadge(s)}</td>
-      <td style="font-size:11px;${eStyle(exp)}">${exp||'-'}</td>
+      <td style="font-size:11px;${eStyle(exp,alertDays)}">${exp||'-'}</td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:4px">
           <button class="abt g" onclick="openQio(${i.id},'in')"><i class="ti ti-arrow-down-circle"></i>입고</button>
@@ -1201,6 +1262,21 @@ function openDetail(itemId,tab){
   document.getElementById('if-company').value=item.company||'';
   document.getElementById('if-sales').value=item.sales||'';
   document.getElementById('if-contact').value=item.contact||'';
+  // 유효기간 알림 설정
+  const alertDays=item.expAlertDays||30;
+  if(alertDays%30===0&&alertDays>=30){
+    document.getElementById('if-alert-val').value=alertDays/30;
+    document.getElementById('if-alert-unit').value='months';
+  } else {
+    document.getElementById('if-alert-val').value=alertDays;
+    document.getElementById('if-alert-unit').value='days';
+  }
+  const noExp=item.noExp||false;
+  document.getElementById('if-noexp').checked=noExp;
+  const wrap=document.getElementById('if-alert-wrap');
+  wrap.style.opacity=noExp?'0.3':'1';
+  wrap.style.pointerEvents=noExp?'none':'auto';
+  updateAlertPreview();
   rebuildSelects();
   document.getElementById('if-cat').value=item.cat;
   document.getElementById('if-dept').value=item.dept;
@@ -1235,19 +1311,36 @@ function switchTab(t){
 }
 
 // ── INFO ──
+function toggleItemNoExp(prefix){
+  const cb=document.getElementById(prefix+'-noexp');
+  const wrap=document.getElementById(prefix+'-alert-wrap');
+  wrap.style.opacity=cb.checked?'0.3':'1';
+  wrap.style.pointerEvents=cb.checked?'none':'auto';
+}
+function updateAlertPreview(){
+  const val=parseInt(document.getElementById('if-alert-val').value)||30;
+  const unit=document.getElementById('if-alert-unit').value;
+  const days=unit==='months'?val*30:val;
+  document.getElementById('if-alert-preview').textContent=`→ 만료 ${days}일 전부터 주황색 표시`;
+}
 function saveItemInfo(){
   const name=document.getElementById('if-name').value.trim();
   if(!name){toast('품목명을 입력하세요');return;}
+  const alertVal=parseInt(document.getElementById('if-alert-val').value)||30;
+  const alertUnit=document.getElementById('if-alert-unit').value;
+  const expAlertDays=alertUnit==='months'?alertVal*30:alertVal;
+  const noExp=document.getElementById('if-noexp').checked;
   const data={name,code:document.getElementById('if-code').value.trim(),
     cat:document.getElementById('if-cat').value,dept:document.getElementById('if-dept').value,
     min:parseInt(document.getElementById('if-min').value)||0,
     company:document.getElementById('if-company').value.trim(),
     sales:document.getElementById('if-sales').value.trim(),
-    contact:document.getElementById('if-contact').value.trim()};
+    contact:document.getElementById('if-contact').value.trim(),
+    expAlertDays, noExp};
   items=items.map(i=>i.id===detailItemId?{...i,...data}:i);
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent=`${data.code} · ${data.cat} · ${data.dept}`;
-  saveData();render();toast('품목 정보 저장 완료');
+  saveData();render();closeDetail();toast('품목 정보 저장 완료');
 }
 
 // ── HIST QUICK FILTER ──
@@ -1329,6 +1422,7 @@ function renderHist(){
 // ── LOT TAB ──
 function renderLots(){
   const item=items.find(i=>i.id===detailItemId);if(!item)return;
+  const alertDays=item.expAlertDays||30;
   const sorted=[...item.lots].sort((a,b)=>{if(!a.exp&&!b.exp)return 0;if(!a.exp)return 1;if(!b.exp)return -1;return a.exp<b.exp?-1:1;});
   const el=document.getElementById('lot-cards');
   if(!sorted.length){el.innerHTML='<div class="empty">로트가 없습니다. 위에서 입고를 기록하세요.</div>';return;}
@@ -1337,7 +1431,7 @@ function renderLots(){
     let cls='lot-card',expTxt=l.exp?`유효기간: ${l.exp}`:'유효기간 없음',expS='';
     if(l.exp){
       if(dif<0){cls+=' expired';expTxt+=` <span style="font-size:10px;color:#c0392b">(만료)</span>`;expS='color:#c0392b';}
-      else if(dif<30){cls+=' expiring';expTxt+=` <span style="font-size:10px;color:#d68910">(D-${Math.ceil(dif)})</span>`;}
+      else if(dif<alertDays){cls+=' expiring';expTxt+=` <span style="font-size:10px;color:#d68910">(D-${Math.ceil(dif)})</span>`;}
     }
     return`<div class="${cls}">
       <div class="lc-info"><div class="lc-exp" style="${expS}">${expTxt}</div><div class="lc-sub">LOT #${l.id}</div></div>
@@ -1396,13 +1490,29 @@ function toggleHistAdd(){
   if(open){
     document.getElementById('hadd-type').value='in';
     document.getElementById('hadd-qty').value=1;
-    document.getElementById('hadd-exp').value=today();
-    document.getElementById('hadd-exp').disabled=false;
-    document.getElementById('hadd-noexp').checked=false;
-    document.getElementById('hadd-date').value=today();
     document.getElementById('hadd-memo').value='';
+    document.getElementById('hadd-date').value=today();
     // 기존 로트 드롭다운 채우기
     rebuildHaddLotSel();
+
+    const item=items.find(i=>i.id===detailItemId);
+    const isNoExp=item&&item.noExp;
+    // 유효기간 없음 품목이면 유효기간 영역 비활성화
+    const expArea=document.getElementById('hadd-exp-area');
+    if(expArea){
+      expArea.style.opacity=isNoExp?'0.4':'1';
+      expArea.style.pointerEvents=isNoExp?'none':'auto';
+    }
+    if(isNoExp){
+      document.getElementById('hadd-noexp').checked=true;
+      document.getElementById('hadd-exp').value='';
+      document.getElementById('hadd-exp').disabled=true;
+      document.getElementById('hadd-lot-sel').value='__noexp__';
+    } else {
+      document.getElementById('hadd-noexp').checked=false;
+      document.getElementById('hadd-exp').value=today();
+      document.getElementById('hadd-exp').disabled=false;
+    }
   }
 }
 function rebuildHaddLotSel(){
@@ -1595,11 +1705,27 @@ function openQio(itemId,type){
   document.getElementById('new-lot-toggle').style.display=type==='out'?'none':'flex';
   const lots=[...item.lots].sort((a,b)=>{if(!a.exp&&!b.exp)return 0;if(!a.exp)return 1;if(!b.exp)return -1;return a.exp<b.exp?-1:1;});
   if(lots.length===1)qioLotId=lots[0].id;
-  document.getElementById('qio-lot-opts').innerHTML=lots.length===0
-    ?'<div style="font-size:12px;color:#aaa;padding:6px 0">등록된 로트 없음</div>'
-    :lots.map(l=>`<div class="lot-opt${lots.length===1?' selected':''}" data-lid="${l.id}" onclick="selectLot(this,${l.id})">
-        <span class="lot-opt-l" style="${expOptStyle(l.exp)}">${expLabel(l.exp)}</span>
-        <span class="lot-opt-r">재고 ${l.qty}</span></div>`).join('');
+
+  const isNoExp=item.noExp||false;
+  // 유효기간 없음 품목이면 로트 선택 영역 / 새 유효기간 추가 버튼 숨김
+  document.getElementById('new-lot-toggle').style.display=(type==='out'||isNoExp)?'none':'flex';
+
+  if(isNoExp){
+    // 유효기간 없는 로트 자동 선택
+    const noExpLot=item.lots.find(l=>!l.exp);
+    if(noExpLot)qioLotId=noExpLot.id;
+    else if(type==='in'){qioNewLotMode=true;document.getElementById('qio-noexp').checked=true;document.getElementById('qio-new-exp').value='';document.getElementById('qio-new-exp').disabled=true;}
+    document.getElementById('qio-lot-opts').innerHTML=
+      `<div style="font-size:12px;color:#aaa;padding:6px 10px;background:#f5f5f3;border-radius:7px">
+        <i class="ti ti-calendar-off" style="font-size:11px"></i> 유효기간 없는 품목 — 자동 처리
+      </div>`;
+  } else {
+    document.getElementById('qio-lot-opts').innerHTML=lots.length===0
+      ?'<div style="font-size:12px;color:#aaa;padding:6px 0">등록된 로트 없음</div>'
+      :lots.map(l=>`<div class="lot-opt${lots.length===1?' selected':''}" data-lid="${l.id}" onclick="selectLot(this,${l.id})">
+          <span class="lot-opt-l" style="${expOptStyle(l.exp,item.expAlertDays)}">${expLabel(l.exp,item.expAlertDays)}</span>
+          <span class="lot-opt-r">재고 ${l.qty}</span></div>`).join('');
+  }
   document.getElementById('ov-qio').classList.add('open');
 }
 function selectLot(el,lid){
@@ -1645,28 +1771,44 @@ function submitQio(){
 }
 
 // ── ADD ──
+function updateAddAlertPreview(){
+  const val=parseInt(document.getElementById('f-alert-val').value)||30;
+  const unit=document.getElementById('f-alert-unit').value;
+  const days=unit==='months'?val*30:val;
+  document.getElementById('f-alert-preview').textContent=`→ 만료 ${days}일 전부터 주황색 표시`;
+}
 function openAddModal(){
   document.getElementById('f-name').value='';
   document.getElementById('f-code').value='';
   document.getElementById('f-min').value=10;
+  document.getElementById('f-noexp').checked=false;
+  document.getElementById('f-alert-wrap').style.opacity='1';
+  document.getElementById('f-alert-wrap').style.pointerEvents='auto';
+  document.getElementById('f-alert-val').value=30;
+  document.getElementById('f-alert-unit').value='days';
+  document.getElementById('f-alert-preview').textContent='→ 만료 30일 전부터 주황색 표시';
   document.getElementById('f-company').value='';
   document.getElementById('f-sales').value='';
   document.getElementById('f-contact').value='';
   rebuildSelects();
   document.getElementById('ov-add').classList.add('open');
-  // 자동 포커스
   setTimeout(()=>document.getElementById('f-name').focus(),100);
 }
 function closeAdd(){document.getElementById('ov-add').classList.remove('open');}
 async function saveNewItem(){
   const name=document.getElementById('f-name').value.trim();
   if(!name){toast('품목명을 입력하세요');return;}
+  const alertVal=parseInt(document.getElementById('f-alert-val').value)||30;
+  const alertUnit=document.getElementById('f-alert-unit').value;
+  const expAlertDays=alertUnit==='months'?alertVal*30:alertVal;
+  const noExp=document.getElementById('f-noexp').checked;
   const newItem={
     id:nextItemId++,name,
     code:document.getElementById('f-code').value.trim(),
     cat:document.getElementById('f-cat').value,
     dept:document.getElementById('f-dept').value,
     min:parseInt(document.getElementById('f-min').value)||10,
+    expAlertDays, noExp,
     company:document.getElementById('f-company').value.trim(),
     sales:document.getElementById('f-sales').value.trim(),
     contact:document.getElementById('f-contact').value.trim(),
@@ -1975,10 +2117,13 @@ function closeCfm(){document.getElementById('ov-cfm').classList.remove('open');}
 });
 document.getElementById('chip-input').addEventListener('keydown',e=>{if(e.key==='Enter')submitChip();});
 
-// 품목 추가 모달 엔터키 저장
-['f-name','f-code','f-min','f-company','f-sales','f-contact'].forEach(id=>{
-  const el=document.getElementById(id);
-  if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')saveNewItem();});
+// 품목 추가 모달 엔터키 - 이벤트 위임 방식
+document.getElementById('ov-add').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    const tag=e.target.tagName.toLowerCase();
+    // input 필드에서 엔터 시 저장 (select 제외)
+    if(tag==='input') saveNewItem();
+  }
 });
 
 // ── MEMO ──
@@ -1992,7 +2137,7 @@ function toggleMemo(){
   memoOpen=!memoOpen;
   document.getElementById('memo-drawer').classList.toggle('open',memoOpen);
   document.getElementById('memo-fab').style.display=memoOpen?'none':'flex';
-  document.querySelector('.app').classList.toggle('memo-open',memoOpen);
+  document.getElementById('app-wrap').classList.toggle('memo-open',memoOpen);
   if(memoOpen){
     renderMemoDeptBtns();
     updateMemoTodayLabel();
