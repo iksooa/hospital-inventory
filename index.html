@@ -2142,6 +2142,17 @@ function toggleMemo(){
     renderMemoDeptBtns();
     updateMemoTodayLabel();
     if(memoTabActive==='hist')renderMemoHist();
+    // 바깥 클릭 시 닫기
+    setTimeout(()=>document.addEventListener('click',memoOutsideClick),100);
+  } else {
+    document.removeEventListener('click',memoOutsideClick);
+  }
+}
+function memoOutsideClick(e){
+  const drawer=document.getElementById('memo-drawer');
+  const fab=document.getElementById('memo-fab');
+  if(!drawer.contains(e.target)&&!fab.contains(e.target)){
+    toggleMemo();
   }
 }
 
